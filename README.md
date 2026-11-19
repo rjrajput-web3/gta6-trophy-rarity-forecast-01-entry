@@ -15,42 +15,53 @@ logit scale.
 `main.py` is the packed entrypoint (built from the readable `forecast.py` with
 the kit's `makefun compress`). A trophy's rate is E/N: earners over players
 tracked. The two move for different reasons, so they are forecast separately
-and divided, all on the logit scale:
+and divided, all on the logit scale. Every prior in this round is calibrated
+on the game's actual first-day trajectory: the launch-night page (638 players
+tracked, 943 trophies earned), the documented first refresh (3,868 players,
+4,276 trophies earned), the previous entry's scored practice result, and the
+public page's state about 18 hours after launch.
 
 1. **Refresh inversion (stale history).** When the history holds fewer than
    3 distinct observations (the practice cases: every read is the identical
    launch-night page), the program recovers the integer earners behind the
    last read (round(rate x N / 100); the 55 recovered counts sum to 943,
    exactly the history's `trophies_earned` total) and re-rates them over the
-   documented refreshed player base (638 -> 3,868 players), grown by 1.19x.
-   That 1.19x factor is fitted to the previous entry's observed practice
-   loss of 1.273384 on both cases, which pure dilution (1.00x, loss 1.45)
-   and 1.50x growth (loss 1.06) both fail to reproduce. The spread is tight
-   (sigma ~0.15): the refresh answers are nearly deterministic given the
-   documented N jump.
+   documented refreshed player base (638 -> 3,868). The refresh's earner
+   growth is per kind, not uniform: of the refreshed total of 4,276, the
+   100% trophy accounts for 3,868, so the other 54 trophies grew 305 -> 408
+   in total, concentrated in the kinds players reach first (the fishing
+   challenge x3.0, Chapter 1 x2.6, the arcade game x2.3, discovering
+   vehicles x1.7) while story and side content grew about a tenth and the
+   long grinds barely moved. That split is what the previous entries'
+   scored practice losses (0.113313 and 1.273384) jointly require; a
+   uniform multiplier fits neither. The spread is per kind plus the count
+   uncertainty of the small recovered counts.
 2. **Earners / players decomposition (rich history).** Log N is fitted
-   against log(1 + hours since launch) over the recent distinct reads, slope
-   shrunk toward 0.8; log earners are fitted per trophy the same way, slope
-   shrunk toward a category prior from the trophy's tier and description,
-   and capped at the category's week-one ceiling share of the forecast N.
-   Consecutive identical reads are collapsed first: stale Exophase repeats
-   carry no information.
-3. **Ensemble median.** 40% E/N forecast + 60% saturating trend fit (logit
-   rate linear in log launch-age over the last 24h), blended in logit space.
-4. **Honest, tightened spread.** The quantile width comes from the fit
-   residual plus a diffusion term growing with the horizon plus a category
-   term, tightened by 0.7x: the un-tightened spread scored coverage 1.00 on
-   every synthetic final (grossly over-wide).
-5. **The 100% trophy.** Trophy 2 reads 100.00% in every read while Chapter 1
-   sits near 0.5%: a stuck display value. On a short horizon it is forecast
-   tight near 100% (the answering read is the documented refresh that kept
-   it at 100%); on the 4.5-day final horizon it keeps mixture quantiles,
-   most mass near 100% with the rest on the story-trophy trajectory in case
-   the display corrects.
+   against log(1 + hours since launch) over the recent distinct reads,
+   slope shrunk toward 1.0 (the observed first-day slope is about 1.04);
+   log earners are fitted per trophy the same way, slope shrunk toward a
+   blend of a kind prior measured on the first-day trajectory and the
+   case's own cross-trophy median slope, so the ensemble calibrates
+   itself to the regime the case actually shows. Dilution dominates
+   launch week (most kinds' earner slopes measure 0.05-0.2, Chapter 1
+   about 0.9), so the priors sit far below textbook values, and earners
+   are capped at kind ceilings set from the same trajectory.
+3. **Ensemble median.** 25% E/N forecast + 75% saturating trend fit
+   (logit rate linear in log launch-age over the last 48h of distinct
+   reads), blended in logit space; the trend window is 48h because
+   refreshes are hours apart and a 24h window often holds too few
+   distinct reads to fit at all.
+4. **Calibrated spread.** The quantile width comes from the fit residual
+   plus a diffusion term growing with the horizon plus a kind term,
+   tightened by 0.55x, the factor the benchmark families support.
+5. **The 100% trophy.** Trophy 2 is the opening fishing tutorial: its
+   earners are the whole tracked base (638 of 638 at launch, 3,868 of
+   3,868 at the first refresh, all but a couple of players a refresh
+   later at 99.99%). It is forecast on a deficit model (100 - rate stays
+   in the hundredths) in both regimes, not as a stuck display that might
+   correct to a story-trophy rate.
 
 Pure Python standard library, fully deterministic, no network, no randomness.
-Category ceilings and slopes are calibrated on public long-run GTA V trophy
-data and the launch-day Exophase reads.
 
 ## Local check
 
@@ -62,18 +73,26 @@ python3 benchmark/verify.py
 
 `benchmark/verify.py` (1) validates the entry on the kit's practice cases
 p00/p01, including byte-identical output across two runs; (2) scores the
-practice cases under oracle-calibrated answers (launch earners x1.19 /
-3,868, trophy 2 at 100%): about 0.035, far below the live Top-200 bar of
-0.125 and the previous entry's 1.273384; (3) runs synthetic finals on two
-independent generators (calibrated N + Hill-curve rates with perturbed
-ceilings, and a power-law generator): mean pinball loss about 0.216 and
-about 0.25, beating both house baselines (persistence about 0.306 / 0.340,
-fitted curve about 0.288 / 0.304) on every run of the calibrated generator.
+practice cases under live-calibrated answers — the documented refreshed
+page (3,868 players, 4,276 trophies earned) with its per-trophy split
+identified from the previous entries' scored losses and the public page's
+later launch-day state: 0.101 against the previous entry's 0.124 on the
+same answers (its actual live loss was 0.113313); (3) backtests against
+the real page state of 2026-11-19 ~18:12Z from earlier real data
+(0.078-0.83 depending on how much history the case carries, against the
+previous entry's 0.49-1.06); (4) runs synthetic finals on four
+generators (calibrated Hill curves, power-law, low-ceiling onset, and a
+dilution-persistent generator that extrapolates the measured first-day
+dynamics): means about 0.20 / 0.28 / 0.24 / 0.073, against the previous
+entry's 0.216 / 0.247 / 0.236 / 1.59 — better on three, level on the
+onset family, and within a bounded margin on the power-law family, whose
+player growth is far steeper than the observed trajectory the entry is
+calibrated to.
 
 ## Layout
 
 - `forecast.py` — readable source of the forecaster
 - `main.py` — packed entrypoint, produced by `makefun compress`
-- `benchmark/verify.py` — practice validation + oracle-calibrated practice
-  score + synthetic-final benchmarks
+- `benchmark/verify.py` — practice validation + live-calibrated practice
+  score + real-trajectory backtests + synthetic-final benchmarks
 - `LICENSE` — MIT

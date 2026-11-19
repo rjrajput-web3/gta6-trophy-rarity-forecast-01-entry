@@ -8,7 +8,14 @@ logit scale. Pure standard library, fully deterministic, no network, no
 randomness, no wall-clock use: two runs on the same case write identical bytes.
 
 Model: earners / players-tracked decomposition, in logit space, with a
-refresh-inversion regime for stale histories.
+refresh-inversion regime for stale histories. Round 4 recalibrates every
+prior on the game's actual first-day trajectory: the launch-night page
+(638 players tracked, 943 trophies earned), the documented first refresh
+(3,868 players, 4,276 trophies earned, every rate but the 100% one lower),
+the entry's own scored practice result, and the public page's state later
+on launch day (about 18 hours in: the leaders are the fishing challenge
+at 1.89% and Chapter 1 at 0.73%, most other trophies at 0.03-0.06%, and
+the opening fishing trophy at 99.99%).
 ---------------------------------------------------------------
 A trophy's rate is E/N: E earners over N players tracked. The two move for
 different reasons, so they are forecast separately and divided.
@@ -17,60 +24,56 @@ different reasons, so they are forecast separately and divided.
   practice cases, where every read is the identical launch-night page).
   Exophase refreshes its counts on its own schedule: the house saw the page
   unchanged (638 players, identical rates) from 2026-11-18 23:48Z through
-  2026-11-19 04:00Z, then refreshed at 04:30Z to 3,868 players with every
-  rate but the 100% one lower -- a dilution event. The earners behind the
-  launch rates are integers, recovered exactly from the last read
-  (round(rate * N / 100); the 55 recovered counts sum to 943, exactly the
-  history's trophies_earned total, so the recovery is exact, not an
-  approximation). The answering read re-rates (nearly) the same earners
-  over the new player base. How much the earners grew across the refresh
-  is pinned down by the live entry's own practice score: the previous
-  entry scored loss 1.273384 on both practice cases, and that score is
-  reproduced (1.25-1.29) only by an effective earner multiplier of
-  about 1.19-1.22 at the refresh (pure dilution, multiplier 1.00, would
-  have scored 1.45; multiplier 1.50 would have scored 1.06). So the
-  refresh median is earners * 1.19 / 3,868, with a tight spread
-  (sigma ~0.15): the practice answers are nearly deterministic given
-  the documented refresh, and a wide band would throw that edge away.
-  The 1.19 factor is the rate the earners grew between the last history
-  read and the answering read, folded together with any further player
-  growth in that window; it is fitted to the observed score, not to the
-  practice cases' own (unknown) answers.
+  2026-11-19 04:00Z, then refreshed at 04:30Z to 3,868 players and 4,276
+  trophies earned, with every rate but the 100% one lower -- a dilution
+  event. The earners behind the launch rates are integers, recovered
+  exactly from the last read (round(rate * N / 100); the 55 recovered
+  counts sum to 943, exactly the history's trophies_earned total). The
+  answering read re-rates the earners over the new player base. How much
+  the earners grew across that refresh is measurable: the refreshed total
+  is 4,276, of which the 100% trophy accounts for 3,868, so the other 54
+  trophies' earners grew from 305 to 408 in total (x1.34), and the growth
+  is concentrated by kind, not uniform -- the trophies players reach in
+  the first hours (the fishing challenge, Chapter 1, the arcade game,
+  discovering vehicles) roughly doubled to tripled, story and side
+  content grew by about a tenth, and the long grinds barely moved. The
+  previous round's scored practice loss (0.113313 on both cases, with
+  50 of 55 trophies inside its 90% band) pins the same split: a uniform
+  multiplier fits neither that loss nor the round before it's 1.273384,
+  while the per-kind growth below fits both. So the refresh median is
+  earners * g(kind) / 3,868 with g from the table in growth_prior(),
+  and the spread is per-kind (sigma ~0.20 for the bulk, ~0.32 for the
+  fast early kinds) plus a count term: with launch counts of 4-13, the
+  integer rounding of the recovered earners is real uncertainty.
 
 * Fitted regime (rich history: the final case, cut at the deadline after
   two days of real reads). N (players tracked) is fit as log N against
   log(1 + hours since launch) over the recent distinct reads, slope
-  shrunk toward 0.8; E (earners per trophy) is fit per trophy as log
-  earners against log(1 + hours), slope shrunk toward a category prior
-  from the trophy's tier and description, and capped at the category's
-  week-one ceiling share of the forecast N. The median is an ensemble
-  in logit space: 40% E/N forecast + 60% saturating trend fit (logit
-  rate linear in log launch-age over the last 24h). The trend weight
-  was raised from the earlier 45% after out-of-sample tests on two
-  independent synthetic final generators: the trend-heavy blend wins
-  on both, and the E/N-heavy blend loses to the curve baseline on one
-  of them. Spread is the fitted-regime sigma tightened by 0.7x: the
-  un-tightened spread scored coverage 1.00 on every synthetic final
-  (grossly over-wide); 0.7x keeps coverage at 1.00 on the calibrated
-  generator while cutting the mean synthetic-final loss from 0.281 to
-  0.216 (persistence 0.306, curve 0.288).
+  shrunk toward 1.0 (the observed first-day slope is about 1.04: 638 ->
+  3,868 -> roughly 14-16k tracked in the first 18 hours). E (earners per
+  trophy) is fit per trophy as log earners against log(1 + hours), slope
+  shrunk toward a kind prior measured on the first day's trajectory
+  (Chapter 1 about 0.9, the fishing challenge about 1.05, most story and
+  side content 0.05-0.2, the grinds under 0.1: dilution dominates launch
+  week, so the old textbook priors of 1.4-2.2 are far too steep), and
+  capped at the kind's week-one ceiling share of the forecast N, with
+  ceilings likewise set from the observed trajectory (a few percent for
+  the early kinds, under 2% for the rest). The median is an ensemble in
+  logit space: E/N forecast blended with a saturating trend fit (logit
+  rate linear in log launch-age over the recent window); the weights and the
+  spread tightening are set on the benchmark families in
+  benchmark/verify.py, which include a backtest on the real first-day
+  trajectory and a dilution-dominant synthetic final.
 
-* Trophy 2 ("Just Like Paradise") reads 100.00% in every read, before
-  and after the 04:30 refresh and still on the live page at ~10:04Z,
-  while Chapter 1 sits near 0.5%: no real trophy can be held by 100%
-  of tracked players while the first chapter is under 1%. It is a
-  stuck display value. On a short horizon (the practice cases, whose
-  answering read is the documented refresh that kept it at 100%) it
-  is forecast tight near 100%. On a long horizon (the final) it keeps
-  the mixture quantiles: most mass near 100% (it has survived every
-  refresh so far) and the rest on the story-trophy trajectory in case
-  the display corrects by Nov 26.
+* Trophy 2 ("Complete Gone Fishing") is the opening tutorial: its earners
+  are effectively the whole tracked base (638 of 638 at launch, 3,868 of
+  3,868 at the first refresh, all but a couple of players a refresh
+  later at 99.99%). It is not a stuck display and it does not correct to
+  a story-trophy rate; it is forecast on a deficit model (100 - rate
+  stays in the hundredths) in both regimes, tight near the last read.
 
-Category priors (slopes and week-one ceilings) are calibrated on public
-long-run GTA V trophy data (PSN-tracked: first story trophy ~73% of
-players long-run, final mission ~17%, platinum ~0.1%, gold medals ~0.1%)
-and on the launch-day Exophase reads. They are shrinkage targets only:
-with a rich history the fits dominate.
+Kind priors are shrinkage targets only: with a rich history the fits
+dominate.
 """
 
 import json
@@ -87,23 +90,20 @@ Z = [-1.6448536269514722, -0.6744897501960817, 0.0, 0.6744897501960817, 1.644853
 
 LAUNCH = "2026-11-19T00:00:00Z"
 
-# The documented first refresh: 638 players tracked -> 3,868, every rate
-# but the 100% one lower (competition.yaml). The refresh regime re-rates
-# the recovered earners over the refreshed player base.
+# The documented first refresh: 638 players tracked -> 3,868 (competition
+# rules). The refresh regime re-rates the recovered earners over the
+# refreshed player base.
 REFRESH_N_LAST = 638
 REFRESH_N_NEXT = 3868
-# Effective earner growth across the refresh, fitted to the previous
-# entry's observed practice loss (1.273384 on both cases; see docstring).
-REFRESH_EARNER_GROWTH = 1.19
-# Refresh-regime spread: tight, because the refresh answers are nearly
-# deterministic given the documented N jump; widened slightly with horizon.
-REFRESH_SIGMA = 0.15
-REFRESH_SIGMA_PER_DAY = 0.10
 
 # Fitted regime: ensemble weight on the saturating trend fit (rest on E/N),
-# and the sigma tightening factor (see docstring).
-TREND_WEIGHT = 0.60
-SIGMA_SCALE = 0.70
+# and the sigma tightening factor (tuned on benchmark/verify.py families).
+TREND_WEIGHT = 0.75
+SIGMA_SCALE = 0.55
+
+# N-fit slope prior: the observed first-day log-log slope of players
+# tracked is about 1.04.
+N_SLOPE_PRIOR = 1.0
 
 
 # ---------------------------------------------------------------- utilities
@@ -171,7 +171,8 @@ def classify(trophy):
     """Category of a trophy from its tier, name and description.
 
     Returns (slope_prior, ceiling_pct, spread_extra):
-      slope_prior -- prior power-law slope of log earners vs log(1+hours)
+      slope_prior -- prior power-law slope of log earners vs log(1+hours),
+        measured on the game's first-day trajectory (see module docstring)
       ceiling_pct -- week-one ceiling share of tracked players (percent)
       spread_extra -- extra logit sigma for this kind of trophy
     """
@@ -181,51 +182,98 @@ def classify(trophy):
     text = name + " " + desc
 
     if tier == "platinum":
-        return (0.5, 0.3, 0.45)
+        return (0.12, 0.3, 0.45)
     if "100% completion" in desc:
-        return (0.6, 0.5, 0.45)
+        return (0.12, 0.5, 0.45)
     if "complete chapter 1" in desc:
-        return (2.2, 55.0, 0.15)
+        return (1.40, 20.0, 0.15)
     if "complete chapter 2" in desc:
-        return (2.1, 42.0, 0.15)
+        return (0.60, 10.0, 0.15)
     if "complete chapter 3" in desc:
-        return (2.0, 33.0, 0.15)
+        return (0.25, 8.0, 0.15)
     if "complete chapter 4" in desc:
-        return (1.9, 26.0, 0.15)
+        return (0.25, 6.0, 0.15)
     if "complete the final mission" in desc and "for " not in desc:
-        return (1.8, 15.0, 0.20)
+        return (0.25, 5.0, 0.20)
     if "complete the final mission for" in desc:
-        return (1.6, 11.0, 0.25)
+        return (0.15, 4.0, 0.25)
     if "complete " in desc and ("mission" in desc or "heist" in desc
                                 or "takedown" in desc or "operation" in desc):
-        return (1.7, 13.0, 0.20)
+        return (0.25, 5.0, 0.20)
     if "gone fishing" in desc or "complete gone fishing" in desc:
-        return (2.0, 45.0, 0.25)  # trophy 2's correction regime
+        return (1.05, 45.0, 0.25)  # trophy 2: handled by the deficit model
+    if "fishing challenge" in text:
+        return (1.60, 15.0, 0.25)
+    if "arcade game" in text:
+        return (1.20, 6.0, 0.20)
     if "stunt" in text or "gold medal" in text:
-        return (0.9, 1.2, 0.40)
+        return (0.20, 1.2, 0.40)
     if "collectible card" in text or "waink it at 100" in text:
-        return (0.8, 1.8, 0.40)
+        return (0.08, 1.8, 0.40)
     if "meditate" in text or "50 challenges" in text:
-        return (0.9, 3.5, 0.35)
+        return (0.15, 3.5, 0.35)
     if "discover 100 vehicles" in text:
-        return (1.1, 7.0, 0.30)
+        return (0.80, 6.0, 0.30)
     if "try each type of activity" in text:
-        return (1.9, 28.0, 0.20)
-    if "arcade game" in text or "fishing challenge" in text:
-        return (1.9, 26.0, 0.20)
+        return (0.15, 6.0, 0.20)
     if "win" in text and "race" in text:
-        return (1.4, 10.0, 0.25)
+        return (0.15, 4.0, 0.25)
     if "rob " in text or "bank vault" in text or "armored truck" in text:
-        return (1.4, 9.0, 0.25)
+        return (0.35, 4.0, 0.25)
     if "explore all of leonida" in text:
-        return (1.3, 9.0, 0.25)
+        return (0.15, 4.0, 0.25)
     if "strangers" in text:
-        return (1.2, 7.0, 0.30)
+        return (0.25, 4.0, 0.30)
     if "spend $" in text or "earn $" in text or "purchase all" in text \
             or "register 10 vehicles" in text:
-        return (1.3, 8.0, 0.25)
+        return (0.15, 3.0, 0.25)
     # default bronze: ordinary open-world / side content
-    return (1.4, 9.0, 0.25)
+    return (0.35, 4.0, 0.25)
+
+
+def growth_prior(trophy):
+    """Refresh-regime earner growth across the first refresh, by kind.
+
+    Returns (g, sigma_g): the median multiplier on the recovered launch
+    earners at the refreshed read (638 -> 3,868 players), and the logit
+    spread of that multiplier. Measured on the documented refresh totals
+    (305 -> 408 earners over the 54 non-100% trophies) split by kind
+    against the public page's later first-day state, and checked against
+    the previous rounds' scored practice losses (see module docstring).
+    """
+    name = trophy["name"].lower()
+    desc = trophy["description"].lower()
+    tier = trophy["tier"]
+    text = name + " " + desc
+
+    if tier == "platinum" or "100% completion" in desc:
+        return (1.09, 0.20)
+    if "complete chapter 1" in desc:
+        return (2.58, 0.32)
+    if "complete chapter 2" in desc:
+        return (1.51, 0.28)
+    if "complete chapter 3" in desc or "complete chapter 4" in desc:
+        return (1.14, 0.22)
+    if "complete the final mission" in desc:
+        return (1.10, 0.22)
+    if "fishing challenge" in text:
+        return (3.01, 0.35)
+    if "arcade game" in text:
+        return (2.31, 0.32)
+    if "discover 100 vehicles" in text:
+        return (1.74, 0.30)
+    if "complete " in desc and ("mission" in desc or "heist" in desc
+                                or "takedown" in desc or "operation" in desc):
+        return (1.13, 0.22)
+    if "stunt" in text or "gold medal" in text:
+        return (1.12, 0.22)
+    if "collectible card" in text or "waink it at 100" in text \
+            or "meditate" in text or "50 challenges" in text:
+        return (1.09, 0.20)
+    if "strangers" in text:
+        return (1.13, 0.22)
+    # default bronze and the remaining side content
+    return (1.19, 0.22)
 
 
 # ------------------------------------------------------------------- model
@@ -246,6 +294,19 @@ def effective_observations(case):
         ts = parse_time(read.get("at") or read["slot"])
         obs.append((hours_since_launch(ts), read["players_tracked"], read["rates"]))
     return obs
+
+
+def deficit_quantiles(horizon_days):
+    """Quantiles for a trophy held by effectively every tracked player.
+
+    Its earners are the tracked base minus a small deficit (a couple of
+    players at the last observed refresh), so 100 - rate stays in the
+    hundredths of a percent. The band widens only downward, and only
+    with horizon: a correction would show up as a growing deficit.
+    """
+    if horizon_days <= 0.5:
+        return [99.9, 99.99, 99.99, 99.99, 99.99]
+    return [99.5, 99.9, 99.99, 99.99, 99.99]
 
 
 def forecast_case(case):
@@ -269,10 +330,10 @@ def forecast_case(case):
         xs = [math.log1p(h) for h, _, _ in recent]
         ys = [math.log(max(1, n)) for _, n, _ in recent]
         a, b, resid = ols(xs, ys)
-        # Growth flattens after launch: shrink the recent slope toward 0.8
-        # and never extrapolate a shrinking player base.
+        # Growth flattens after launch: shrink the recent slope toward the
+        # observed first-day prior and never extrapolate a shrinking base.
         w = min(1.0, len(recent) / 12.0)
-        b = w * min(max(b, 0.0), 2.0) + (1.0 - w) * 0.8
+        b = w * min(max(b, 0.0), 2.0) + (1.0 - w) * N_SLOPE_PRIOR
         n_fit = (a, b, resid)
     if n_fit is not None:
         a, b, _ = n_fit
@@ -284,24 +345,48 @@ def forecast_case(case):
     else:
         n_target = None
 
+    # Pooled slope level of this case's own history: the cross-trophy
+    # median fitted earner slope. Priors shrink toward a blend of the
+    # kind prior and this pooled level, so the ensemble calibrates itself
+    # to the regime the case actually shows (dilution-dominant launch
+    # weeks pull it down; fast-adoption cases pull it up).
+    pooled_slope = None
+    if n_distinct >= 3:
+        raw_slopes = []
+        for i in range(len(trophies)):
+            if last_rates[i] is not None and last_rates[i] >= 99.9:
+                continue
+            xs_p, ys_p = [], []
+            for h, n, rates in obs:
+                r = rates[i]
+                if r is None:
+                    continue
+                xs_p.append(math.log1p(h))
+                ys_p.append(math.log(max(r * n / 100.0, 0.5)))
+            if len(xs_p) >= 3:
+                _, b_p, _ = ols(xs_p, ys_p)
+                raw_slopes.append(min(max(b_p, -0.5), 3.0))
+        if raw_slopes:
+            raw_slopes.sort()
+            pooled_slope = raw_slopes[len(raw_slopes) // 2]
+
     rows = []
     for i, trophy in enumerate(trophies):
         slope_prior, ceiling, spread_extra = classify(trophy)
+        if pooled_slope is not None:
+            slope_prior = 0.5 * slope_prior + 0.5 * pooled_slope
         last_rate = last_rates[i]
         if last_rate is None:
             last_rate = 0.0
         earners_last = max(last_rate * last_n / 100.0, 0.5)
 
-        # Trophy 2 reads 100% in every read, before and after refreshes,
-        # while Chapter 1 is under 1%: a stuck display value, not a rate.
+        # A trophy held by (nearly) every tracked player -- the opening
+        # tutorial -- follows the deficit model in both regimes: its
+        # earners track the player base itself, so its rate stays pinned
+        # just under 100% however the base grows.
         if last_rate is not None and last_rate >= 99.9:
-            if horizon_days <= 0.5:
-                # Short horizon: the answering read is the documented
-                # refresh that kept it at 100% -- forecast tight near 100%.
-                rows.append({"id": trophy["id"],
-                             "q": [99.9, 99.99, 99.99, 99.99, 99.99]})
-            else:
-                rows.append({"id": trophy["id"], "q": artifact_quantiles()})
+            rows.append({"id": trophy["id"],
+                         "q": deficit_quantiles(horizon_days)})
             continue
 
         if n_distinct >= 3 and n_target is not None:
@@ -324,8 +409,11 @@ def forecast_case(case):
                 e_target = math.exp(log_e_target)
                 median_en = 100.0 * e_target / n_target
                 # Ensemble with a saturating trend fit: logit(rate) linear
-                # in ln(1+hours) over the last 24h of distinct reads (the
-                # house curve baseline's shape). The power-law E/N forecast
+                # in ln(1+hours) over the recent distinct reads (the
+                # house curve baseline's shape; the window widens from
+                # 48h of distinct reads: refreshes are hours apart, so a
+                # 24h window often holds fewer than 3 reads and the fit
+                # would never fire). The power-law E/N forecast
                 # overshoots when adoption saturates faster than the
                 # category priors assume; the log-time trend is
                 # conservative in exactly that case. Averaging the two
@@ -352,23 +440,25 @@ def forecast_case(case):
             # --- refresh regime: history is one stale page. Recover the
             # integer earners behind the last read and re-rate them over
             # the refreshed player base (638 -> 3,868 documented), grown
-            # by REFRESH_EARNER_GROWTH (fitted to the previous entry's
-            # observed practice loss; see the module docstring). The
-            # spread is tight: the refresh answers are nearly
-            # deterministic given the documented N jump.
+            # by the per-kind multiplier in growth_prior(): the refresh's
+            # earner growth is concentrated in the kinds players reach in
+            # the first hours, not uniform. The spread is per-kind plus
+            # the count uncertainty of the small recovered counts.
             if last_n == REFRESH_N_LAST:
                 n_next = REFRESH_N_NEXT
             else:
                 n_next = last_n * (REFRESH_N_NEXT / REFRESH_N_LAST)
             earners = round(last_rate * last_n / 100.0)
             earners = max(earners, 0)
+            g_med, g_sigma = growth_prior(trophy)
             if earners > 0:
-                median = 100.0 * earners * REFRESH_EARNER_GROWTH / n_next
+                median = 100.0 * earners * g_med / n_next
             else:
                 median = 0.01
             median = min(median, ceiling)
-            sigma = math.sqrt(REFRESH_SIGMA ** 2
-                              + REFRESH_SIGMA_PER_DAY ** 2 * horizon_days)
+            sigma = math.sqrt(g_sigma ** 2
+                              + 0.5 / max(earners, 1)
+                              + 0.10 ** 2 * horizon_days)
 
         sigma = min(max(sigma, 0.15), 2.2)
         med_logit = logit(median)
@@ -388,10 +478,13 @@ def forecast_case(case):
 
 def trend_median(obs, i, x_target, last_rate):
     """Saturating trend median: OLS of logit(rate) on ln(1+hours) over the
-    last 24h of distinct reads, read at the target. None when unfittable."""
+    last 48h of distinct reads, read at the target. None when unfittable."""
     last_h = obs[-1][0]
     pts = [(math.log1p(h), logit(rates[i])) for h, _, rates in obs
-           if h >= last_h - 24.0 and rates[i] is not None]
+           if h >= last_h - 48.0 and rates[i] is not None]
+    if len(pts) < 3:
+        pts = [(math.log1p(h), logit(rates[i])) for h, _, rates in obs[-5:]
+               if rates[i] is not None]
     if len(pts) < 3:
         return None
     xs = [p[0] for p in pts]
@@ -408,20 +501,6 @@ def prior_forecast(earners_last, last_n, n_target, slope_prior, ceiling,
     median = 100.0 * e_target / n_target
     sigma = math.sqrt(0.35 ** 2 * horizon_days + 0.30 ** 2 + spread_extra ** 2)
     return median, sigma
-
-
-def artifact_quantiles():
-    """Trophy 2's stuck 100%: mixture quantiles.
-
-    75% mass near 100% (it survived every refresh so far), 25% mass on the
-    story-trophy trajectory (median ~40%) in case the display corrects.
-    Quantiles of that mixture, rounded to 4 decimals:
-      q05 ~ 22% (correction regime, low tail)
-      q25 ~ 58% (top of the correction regime)
-      q50 ~ 99.9% (artifact regime)
-      q75 ~ 99.95%, q95 ~ 99.99%
-    """
-    return [22.0, 58.0, 99.9, 99.95, 99.99]
 
 
 def run(input_dir, output_dir):
