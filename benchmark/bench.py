@@ -38,7 +38,7 @@ import sys
 from pathlib import Path
 
 WORK = Path(__file__).resolve().parent.parent
-KIT = Path.home() / "workspace/makefun/gta6-rarity-kit/gta6-trophy-rarity-forecast-01-kit-20261119"
+KIT = Path.home() / "workspace/makefun/gta6-rarity-kit/gta6-trophy-rarity-forecast-01-kit"
 INPUT = KIT / "input"
 
 LEVELS = [0.05, 0.25, 0.5, 0.75, 0.95]
